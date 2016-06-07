@@ -310,20 +310,24 @@ function cvode(f::Function, y0::Vector{Float64}, t::Vector{Float64}; reltol::Flo
     end
 
     yres = zeros(length(t), length(y0))
+    y0_nv   = nvector(copy(y0))
+    yout_nv = nvector(copy(y0))
+    yout    = asarray(yout_nv)
     try
-        flag = @checkflag CVodeInit(mem, cfunction(cvodefun, Int32, (realtype, N_Vector, N_Vector, Ref{Function})), t[1], nvector(y0))
+        flag = @checkflag CVodeInit(mem, cfunction(cvodefun, Int32, (realtype, N_Vector, N_Vector, Ref{Function})), t[1], y0_nv)
         flag = @checkflag CVodeSetUserData(mem, f)
         flag = @checkflag CVodeSStolerances(mem, reltol, abstol)
         flag = @checkflag CVDense(mem, neq)
         yres[1,:] = y0
-        y = copy(y0)
         tout = [0.0]
         for k in 2:length(t)
-            flag = @checkflag CVode(mem, t[k], y, tout, CV_NORMAL)
-            yres[k,:] = y
+            flag = @checkflag CVode(mem, t[k], yout_nv, tout, CV_NORMAL)
+            yres[k,:] = yout
         end
     finally
         CVodeFree([mem])
+        N_VDestroy_Serial(y0_nv)
+        N_VDestroy_Serial(yout_nv)
     end
     return yres
 end
